@@ -1,0 +1,48 @@
+pipeline {
+    agent { dockerfile true }
+    stages {
+        stage('Build') {
+            steps {
+                sh 'python zip_job.py'
+            }
+        }
+        stage('Publish') {
+            steps {
+                rtServer (
+                    id: 'Artifactory-1',
+                    url: 'https://aidock.jfrog.io/artifactory/devops-assignment/',
+                    username: 'super-user',
+                    password: 'Qw12856!'
+                )
+                rtUpload (
+                    serverId: 'Artifactory-1',
+                    spec: '''{
+                          "files": [
+                            {
+                              "pattern": "/var/jenkins_home/workspace/Zip-Job-Declarative/*.zip",
+                              "target": "binary-storage/${JOB_NAME}/"
+                            }
+                        ]
+                  }''',
+                )
+            }
+        }
+    }
+
+    post {
+        success {
+                    emailext body: 'Job Succeeded', recipientProviders: [[$class: 'DevelopersRecipientProvider'], [$class: 'RequesterRecipientProvider']], subject: 'Success'
+        }
+        always {
+            echo 'Cleanup Stage - Deleting the Workspace'
+            cleanWs(cleanWhenNotBuilt: false,
+                    deleteDirs: true,
+                    disableDeferredWipeout: true,
+                    notFailBuild: true,
+                    patterns: [[pattern: 'Dockerfile', type: 'EXCLUDE'],
+                                [pattern: 'zip_job.py', type: 'EXCLUDE']])
+        }
+    }
+
+
+}

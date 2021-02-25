@@ -1,0 +1,46 @@
+node (){
+
+
+  stage('Build') {
+
+    def testImage = docker.build(
+        "devops",
+        "/var/jenkins_home/workspace/Zip-Job-Scripted"
+    )
+
+    testImage.inside('-v /tmp:/tmp') {
+        sh 'python zip_job.py'
+    }
+  }
+
+  stage('Publish') {
+    def server = Artifactory.newServer url: 'https://aidock.jfrog.io/artifactory/devops-assignment/', username: 'super-user', password: 'Qw12856!'
+    def uploadSpec = """{
+  		"files": [
+    			{
+      				"pattern": "/var/jenkins_home/workspace/Zip-Job-Scripted/*.zip",
+                                "target": "binary-storage/${JOB_NAME}/"
+    			}
+ 		         ]
+	       }"""
+        server.upload spec: uploadSpec
+        }
+
+
+		emailext (
+      			subject: "Job Succeeded: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
+      			body: """<p>Job Succeeded: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]':</p>
+        		<p>Check console output at &QUOT;<a href='${env.BUILD_URL}'>${env.JOB_NAME} [${env.BUILD_NUMBER}]</a>&QUOT;</p>""",
+      			recipientProviders: [[$class: 'DevelopersRecipientProvider']]
+    			)
+
+    	 stage("clean up workspace"){
+            echo 'Cleanup Stage - Deleting the Workspace'
+            cleanWs(cleanWhenNotBuilt: false,
+                    deleteDirs: true,
+                    disableDeferredWipeout: true,
+                    notFailBuild: true,
+                    patterns: [[pattern: 'Dockerfile', type: 'EXCLUDE'],
+                                [pattern: 'zip_job.py', type: 'EXCLUDE']])
+            }
+		 }
